@@ -45,13 +45,35 @@
 #define TWI_ENABLE()   (TWCR |= (uint8_t)(1<<TWEN)
 #define TWI_DISABLE()  (TWCR &= (uint8_t)~(1<<TWEN)
 
+#define EXTERNAL                                0
+#define INTERNAL                                1
+
+//#define TW_PULLUPS INTERNAL
+//#define TW_PULLUPS EXTERNAL       // if defined, (en/dis)ables the internal pull-ups on SDA and SCL pins; default is (no external pullups) internal pullups enabled
+
+#define TW_SET_PULLUPS(EXTERNAL)          PORTC &= (uint8_t)~( (1<<4) | (1<<5) )
+#define TW_SET_PULLUPS(INTERNAL)          PORTC |= (uint8_t)( (1<<4) | (1<<5) )
+
 
 
 //--- Init the TWI/I2C ---
 void tw_init(void);
 
+//--- Set the 
+void tw_set_br(uint16_t bit_rate_kHz);
+
 void tw_init(void)
 {
     TWI_ENABLE();
-    
+    //make sure the PUD is not set
+    //enable internal pullups and set port registers    
+
+#ifdef TWI_PULLUPS
+    TW_SET_PULLUPS(TW_PULLUPS);
+#else
+    TW_SET_PULLUPS(INTERNAL);
+#endif
+
+  
 }
+
