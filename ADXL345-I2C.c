@@ -54,12 +54,15 @@
 #define TW_SET_PULLUPS(EXTERNAL)          PORTC &= (uint8_t)~( (1<<4) | (1<<5) )
 #define TW_SET_PULLUPS(INTERNAL)          PORTC |= (uint8_t)( (1<<4) | (1<<5) )
 
-
+#define TW_PS_1                              0x00
+#define TW_PS_4                              0x01
+#define TW_PS_16                             0x02
+#define TW_PS_32                             0x03
 
 //--- Init the TWI/I2C ---
 void tw_init(void);
 
-//--- Set the 
+//--- Set the two-wire clock bits --- 
 void tw_set_br(uint16_t bit_rate_kHz);
 
 void tw_init(void)
@@ -74,6 +77,10 @@ void tw_init(void)
     TW_SET_PULLUPS(INTERNAL);
 #endif
 
-  
+
 }
 
+void tw_set_br(uint16_t bit_rate_kHz)
+{
+    uint8_t br_div =  
+}
