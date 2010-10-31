@@ -1,4 +1,33 @@
-/********** INCOMPLETE*************/
+/*---------------- AVR TWI (I2C) -----------------*/
+/* j.telatnik                                2010 */
+/* ---------------------------------------------- */
+/* this library was written to take care of some  */
+/* common two-wire functions and setup, it was    */
+/* written to work with the ATMEGA48/88/128/328   */
+/* family of devices, although it should work with*/
+/* most devices.                                  */
+/*                                                */
+/*   NOTES:                                       */
+/* -FOSC must be defined in order to set the      */
+/*    timer properly                              */
+/* -TW_PULLUPS_INTERNAL or TW_PULLUPS_EXTERNAL    */
+/*     should be defined to enable or disable     */
+/*     internal interrupts, default is internal   */
+/* -TW_DATA_TRANSFER_MODE_FAST should be defined  */
+/*     to enable 400kHz bit rate, else DATA_TRAN- */
+/*     SFER_MODE_STANDARD should be defined to    */
+/*     enable 100kHz bit rate, default is         */
+/*     standard                                   */
+/*                                                */
+/*   TO DOS:                                      */
+/* -Currently does not work with TWI interrupt    */
+/*     handling, needs to be implemented by       */
+/*     altering the TWCR assignment to not alter  */
+/*     the TWIE bit (ie. change the ='s to |='s   */
+/*     and &='s)                                  */
+/*                                                */
+/*                                                */
+/*                                                */
 
 #include <avr/io.h>
 
@@ -112,17 +141,16 @@ void tw_init(void)
 #define DATA_TRANSFER_MODE_STANDARD
 #endif
 
+    MCUCR &= (uint8_t)~(1<<PUD); //make sure global pull up disable is not set
+
 #ifdef TWI_PULLUPS
     TW_SET_PULLUPS(TW_PULLUPS);
 #else
     TW_SET_PULLUPS(INTERNAL);
 #endif
 
-
     //remember to select data transfer speed on the device 
     TWI_ENABLE();
-    //make sure the PUD is not set
-    //enable internal pullups and set port registers    
 
 }
 //-----------------------------------------------------------------------------------------------
@@ -207,4 +235,41 @@ uint8_t tw_read_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t r
     if(tw_get_status() != TW_MR_DATA_NACK) {TW_SEND_STOP(); return 0;}
     *(data+(n-1)) = TWDR;           //
     return 1;
+}
+//-----------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+uint8_t tw_write_byte(uint8_t data, uint8_t slave_address, uint8_t register_address)
+{
+ 
+    TW_SEND_START();                //grab the line
+    if(tw_get_status() != TW_START) {TW_SEND_STOP(); return 0;}
+    TW_SEND_SLAW(slave_address);    //send a SLA+W 
+    if(tw_get_status() != TW_MT_SLA_ACK) {TW_SEND_STOP(); return 0;}
+    TW_SEND_BYTE(register_address); //then register address
+    if(tw_get_status() != TW_MT_DATA_ACK) {TW_SEND_STOP(); return 0;}
+    TW_SEND_BYTE(data);             //send byte 
+    if(tw_get_status() != TW_MT_DATA_ACK)  {TW_SEND_STOP(); return 0;} 
+    TW_SEND_STOP();                 //got the awknowledge, drop the line
+    return 1;
+}
+//-----------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+uint8_t tw_write_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t register_address)
+{
+  
+    TW_SEND_START();                //grab the line
+    if(tw_get_status() != TW_START) {TW_SEND_STOP(); return 0;}
+    TW_SEND_SLAW(slave_address);    //send a SLA+W 
+    if(tw_get_status() != TW_MT_SLA_ACK) {TW_SEND_STOP(); return 0;}
+    TW_SEND_BYTE(register_address); //then register address
+    if(tw_get_status() != TW_MT_DATA_ACK) {TW_SEND_STOP(); return 0;}
+    for(uint8_t i = 0; i < (n-1) ; i++)
+    {  
+        TW_SEND_BYTE( *(data+i) );  //array containing data must be at least n bytes in size
+        if(tw_get_status() != TW_MT_DATA_ACK)  {TW_SEND_STOP(); return 0;}   
+    }
+    TW_SEND_BYTE( *(data+(n-1)) );  //send the last byte in the array              
+    if(tw_get_status() != TW_MT_DATA_ACK)  {TW_SEND_STOP(); return 0;}   
+    TW_SEND_STOP();
+    return 1; 
 }
