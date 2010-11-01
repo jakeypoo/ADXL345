@@ -14,8 +14,8 @@
 /*     should be defined to enable or disable     */
 /*     internal interrupts, default is internal   */
 /* -TW_DATA_TRANSFER_MODE_FAST should be defined  */
-/*     to enable 400kHz bit rate, else DATA_TRAN- */
-/*     SFER_MODE_STANDARD should be defined to    */
+/*     to enable 400kHz bit rate, else TW_DATA_T- */
+/*     RANSFER_MODE_STANDARD should be defined to */
 /*     enable 100kHz bit rate, default is         */
 /*     standard                                   */
 /*                                                */
@@ -132,13 +132,13 @@ uint8_t tw_write_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t 
 void tw_init(void)
 {
     //only supports one transfer speed, either 400kHz or 100kHz
-#ifdef DATA_TRANSFER_MODE_FAST
+#ifdef TW_DATA_TRANSFER_MODE_FAST
     tw_set_br(400);
 #else
     tw_set_br(100);
 #endif
-#ifndef DATA_TRANSFER_MODE_STANDARD
-#define DATA_TRANSFER_MODE_STANDARD
+#if !defined(TW_DATA_TRANSFER_MODE_STANDARD) && !defined(TW_DATA_TRANSFER_MODE_FAST)
+#define TW_DATA_TRANSFER_MODE_STANDARD
 #endif
 
     MCUCR &= (uint8_t)~(1<<PUD); //make sure global pull up disable is not set
