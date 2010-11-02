@@ -65,10 +65,29 @@
 #define ADXL_ENABLE()             tw_byte_write((uint8_t)(1<<3), ADXL_SLA, ADXL_POWER_CTL)
 #define ADXL_SLEEP()              tw_byte_write( 0x00, ADXL_SLA, ADXL_POWER_CTL)
 
+#define ADXL_RANGE_SEL(x)         tw_write_byte( x, ADXL_SLA, ADXL_DATA_FORMAT)
+
+// ---  interrupt set/mask defines  ----
+#define ADXL_INT_DATA_READY        0x80
+#define ADXL_INT_SINGLE_TAP        0x40
+#define ADXL_INT_DOUBLE_TAP        0x20
+#define ADXL_INT_ACTIVITY          0x10
+#define ADXL_INT_INACTIVITY        0x08
+#define ADXL_INT_FREE_FALL         0x04
+#define ADXL_INT_WATERMARK         0x02
+#define ADXL_INT_OVERRUN           0x01
+                            
+
 //--- sets the bit rate registers if necessary, enables the measure bit to turn on the adxl ---
 void adxl_init(uint8_t range_select);
+//--- enable interrupts and map to int1(leave map mask low) or int2(set map mask bit) ---
+//---- usage:  adxl_set_interrupts((ADXL_INT_DATA_READY | ADXL_INT_FREE_FALL), ADXL_INT_FREE_FALL);
+//       >> enables data_ready interrupt on pin INT1, enables free_fall interrupt on pin INT2 
+void adxl_set_intertupts(uint8_t int_enable, uint8_t int_pin_mask);
 //--- pulls data from one axis only ---
-int16_t adxl_measure_axis(uint8_t axis_select)
+int16_t adxl_measure_axis(uint8_t axis_select);
+//--- pulls data from x, y, z registers, puts it in array data_out, returns 1 if successful ---
+uint8_t adxl_measure_xyz(int16_t *data_out);
 
 //-----------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
@@ -83,15 +102,35 @@ void adxl_init(uint8_t range_select)
     tw_set_br(400);
     TWI_ENABLE();
 #endif
-    tw_write_byte(range_select, ADXL_SLA, ADXL_DATA_FORMAT);
+    ADXL_RANGE_SEL(range_select);
     ADXL_ENABLE();    
 }
+//-----------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
 
 int16_t adxl_measure_axis(uint8_t axis_select)
 {
     uint8_t data_in[2]; 
     while( !tw_read_block(&data_in[0], 2, ADXL_SLA, axis_select) ) ;
-    //FINISH ME
+    return (int16_t)((data_in[0] << 8) | data_in[1]);
 }
-
-
+//-----------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+uint8_t adxl_measure_xyz(int16_t *data_out)
+{
+    uint8_t data_in[6]; 
+    while( !tw_read_block(&data_in[0], 6, ADXL_SLA, ADXL_DATAX0) ) ;
+    *data_out = (int16_t)( (data_in[0] << 8) | data_in[1] );
+    *(data_out + 1) = (int16_t)( (data_in[0] << 8) | data_in[1] );  //make sure this casts 2's compliments properly
+    *(data_out + 2) = (int16_t)( (data_in[0] << 8) | data_in[1] );
+    return 1;
+}
+//-----------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+void adxl_set_intertupts(uint8_t int_enable, uint8_t int_pin_mask)
+{
+    ADXL_SLEEP(); //make sure to assign threshold values to tap, double-tap, etc.
+    tw_write_byte(int_enable, ADXL_SLA, ADXL_INT_ENABLE);
+    tw_write_byte(int_pin_mask, ADXL_SLA, ADXL_INT_MAP); 
+    ADXL_ENABLE();
+}
