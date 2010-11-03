@@ -49,17 +49,17 @@
 #define TWI_ENABLE()   (TWCR |= (uint8_t)(1<<TWEN))
 #define TWI_DISABLE()  (TWCR &= (uint8_t)~(1<<TWEN))
 
-#define EXTERNAL_PULLUP                                0    //CHANGED#
-#define INTERNAL_PULLUP                                1
+#define EXTERNAL_PULLUPS                                0    //CHANGED#
+#define INTERNAL_PULLUPS                                1
 
-//#define TW_PULLUPS INTERNAL
-//#define TW_PULLUPS EXTERNAL       // if defined, (en/dis)ables the internal pull-ups on SDA and SCL pins; default is (no external pullups) internal pullups enabled
+//#define TW_PULLUPS INTERNAL_PULLUPS
+//#define TW_PULLUPS EXTERNAL_PULLUPS       // if defined, (en/dis)ables the internal pull-ups on SDA and SCL pins; default is (no external pullups) internal pullups enabled
 
 //#define TW_DATA_TRANSFER_MODE_FAST      //400kHz transfer speed
 //#define TW_DATA_TRANSFER_MODE_STANDARD  //100kHz tranfer speed
 
-#define TW_SET_PULLUPS(EXTERNAL)          PORTC &= (uint8_t)~( (1<<4) | (1<<5) )
-#define TW_SET_PULLUPS(INTERNAL)          PORTC |= (uint8_t)( (1<<4) | (1<<5) )
+#define TW_SET_PULLUPS(EXTERNAL_PULLUPS)     PORTC &= (uint8_t)~( (1<<4) | (1<<5) )
+#define TW_SET_PULLUPS(INTERNAL_PULLUPS)     PORTC |= (uint8_t)( (1<<4) | (1<<5) )
 
 #define TW_SET_PS(x)                      TWSR   = (uint8_t)(x)
 
@@ -83,7 +83,6 @@
 #define TW_REC_ACK()                      TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWEA)
 #define TW_REC_NACK()                     TWCR = (1<<TWINT)|(1<<TWEN)
 
-#define FOSC                              16000000L
 
 //--- Init the TWI/I2C ---
 void tw_init(void);

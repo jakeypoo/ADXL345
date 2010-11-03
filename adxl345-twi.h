@@ -121,8 +121,8 @@ uint8_t adxl_measure_xyz(int16_t *data_out)
     uint8_t data_in[6]; 
     while( !tw_read_block(&data_in[0], 6, ADXL_SLA, ADXL_DATAX0) ) ;
     *data_out = (int16_t)( (data_in[0] << 8) | data_in[1] );
-    *(data_out + 1) = (int16_t)( (data_in[0] << 8) | data_in[1] );  //make sure this casts 2's compliments properly
-    *(data_out + 2) = (int16_t)( (data_in[0] << 8) | data_in[1] );
+    *(data_out + 1) = (int16_t)( (data_in[2] << 8) | data_in[3] );  //make sure this casts 2's compliments properly
+    *(data_out + 2) = (int16_t)( (data_in[4] << 8) | data_in[5] );
     return 1;
 }
 //-----------------------------------------------------------------------------------------------

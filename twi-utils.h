@@ -74,17 +74,17 @@
 #define TWI_ENABLE()   (TWCR |= (uint8_t)(1<<TWEN))
 #define TWI_DISABLE()  (TWCR &= (uint8_t)~(1<<TWEN))
 
-#define EXTERNAL                                0
-#define INTERNAL                                1
+#define EXTERNAL_PULLUPS                                0
+#define INTERNAL_PULLUPS                                1
 
-//#define TW_PULLUPS INTERNAL
-//#define TW_PULLUPS EXTERNAL       // if defined, (en/dis)ables the internal pull-ups on SDA and SCL pins; default is (no external pullups) internal pullups enabled
+//#define TW_PULLUPS INTERNAL_PULLUPS
+//#define TW_PULLUPS EXTERNAL_PULLUPS       // if defined, (en/dis)ables the internal pull-ups on SDA and SCL pins; default is (no external pullups) internal pullups enabled
 
 //#define TW_DATA_TRANSFER_MODE_FAST      //400kHz transfer speed
 //#define TW_DATA_TRANSFER_MODE_STANDARD  //100kHz tranfer speed
 
-#define TW_SET_PULLUPS(EXTERNAL)          PORTC &= (uint8_t)~( (1<<4) | (1<<5) )
-#define TW_SET_PULLUPS(INTERNAL)          PORTC |= (uint8_t)( (1<<4) | (1<<5) )
+#define TW_SET_PULLUPS(EXTERNAL_PULLUPS)          PORTC &= (uint8_t)~( (1<<4) | (1<<5) )
+#define TW_SET_PULLUPS(INTERNAL_PULLUPS)          PORTC |= (uint8_t)( (1<<4) | (1<<5) )
 
 #define TW_SET_PS(x)                      TWSR   = (uint8_t)(x)
 
@@ -99,9 +99,9 @@
 #define TW_SEND_STOP()                    TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO)
 #define TW_SEND_STOP_START()              TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO)|(1<<TWSTA)
 #define TW_CLR_INT()                      TWCR = (1<<TWINT)|(1<<TWEN)
-#define TW_SEND_SLAW(x)                   TWDR = (uint8_t)(x<<1) | (0x01); \
+#define TW_SEND_SLAR(x)                   TWDR = (uint8_t)(x<<1) | (0x01); \
                                           TW_CLR_INT()
-#define TW_SEND_SLAR(x)                   TWDR = (uint8_t)(x<<1) & 0xFE; \
+#define TW_SEND_SLAW(x)                   TWDR = (uint8_t)(x<<1) & 0xFE; \
                                           TW_CLR_INT()
 #define TW_SEND_BYTE(x)                   TWDR = x; \
                                           TW_CLR_INT()
@@ -149,7 +149,7 @@ void tw_init(void)
 #ifdef TWI_PULLUPS
     TW_SET_PULLUPS(TW_PULLUPS);
 #else
-    TW_SET_PULLUPS(INTERNAL);
+    TW_SET_PULLUPS(INTERNAL_PULLUPS);
 #endif
 
     //remember to select data transfer speed on the device 
@@ -165,22 +165,22 @@ void tw_set_br(uint16_t bitrate_kHz)
     TW_SET_PS(TW_PS_1); //clears the prescaler
 
     //select the prescaler, calculate the bit rate divisor
-    if( (FOSC/16000l)/bitrate_kHz - 16 > 0xFF ) 
+    if( (int16_t)(FOSC/16000)/bitrate_kHz - 16 > 255 ) 
     { 
         TW_SET_PS(TW_PS_64); 
-        br_div = (FOSC-16)/(2*64000l*bitrate_kHz);
-    } 
-    else if( (FOSC/4000l)/bitrate_kHz - 16 > 0xFF )
+        br_div = (uint8_t)((FOSC/(bitrate_kHz*1000))-16)/128;
+  } 
+    else if( (int16_t)(FOSC/4000)/bitrate_kHz - 16 > 255 )
     {
          TW_SET_PS(TW_PS_16);
-         br_div = (FOSC-16)/(2*16000l*bitrate_kHz);
-    }
-    else if( (FOSC/1000l)/bitrate_kHz - 16 > 0xFF )
+         br_div = (uint8_t)((FOSC/(bitrate_kHz*1000))-16)/32;
+   }
+    else if( (int16_t)(FOSC/1000)/bitrate_kHz - 16 > 255 )
     {
          TW_SET_PS(TW_PS_4);
-         br_div = (FOSC-16)/(2*4000l*bitrate_kHz);
+         br_div = (uint8_t)((FOSC/(bitrate_kHz*1000))-16)/8;
     }
-    else  br_div = (FOSC-16)/(2*1000l*bitrate_kHz);
+    else  br_div = (uint8_t)((FOSC/(bitrate_kHz*1000))-16)/2;
    
     TWBR = br_div;  //set the bit rate divisor
 }
@@ -189,7 +189,7 @@ void tw_set_br(uint16_t bitrate_kHz)
 uint8_t tw_get_status()
 {
     while( !(TWCR & (1<<TWINT)) ) ;
-    return TWSR;
+    return (TWSR & 0xF8);
 }
 //-----------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
@@ -237,6 +237,7 @@ uint8_t tw_read_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t r
     TW_REC_NACK();                  //let last data byte come in, send a NACK
     if(tw_get_status() != TW_MR_DATA_NACK) {TW_SEND_STOP(); return 0;}
     *(data+(n-1)) = TWDR;           //
+    TW_SEND_STOP();
     return 1;
 }
 //-----------------------------------------------------------------------------------------------
