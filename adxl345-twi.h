@@ -62,8 +62,8 @@
 
 
 // --- set/clear the measure bit in the power control register to turn on/sleep the adxl ---
-#define ADXL_ENABLE()             tw_byte_write((uint8_t)(1<<3), ADXL_SLA, ADXL_POWER_CTL)
-#define ADXL_SLEEP()              tw_byte_write( 0x00, ADXL_SLA, ADXL_POWER_CTL)
+#define ADXL_ENABLE()             tw_write_byte((uint8_t)(1<<3), ADXL_SLA, ADXL_POWER_CTL)
+#define ADXL_SLEEP()              tw_write_byte( 0x00, ADXL_SLA, ADXL_POWER_CTL)
 
 #define ADXL_RANGE_SEL(x)         tw_write_byte( x, ADXL_SLA, ADXL_DATA_FORMAT)
 

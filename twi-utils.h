@@ -71,8 +71,8 @@
 //#define WRITE_sda() DDRC = DDRC | 0b00010000 // ...TWI disconnects the pins from the port and has it's own hardware
 //#define READ_sda()  DDRC = DDRC & 0b11101111 // ...I dont think this is necessary
 
-#define TWI_ENABLE()   (TWCR |= (uint8_t)(1<<TWEN)
-#define TWI_DISABLE()  (TWCR &= (uint8_t)~(1<<TWEN)
+#define TWI_ENABLE()   (TWCR |= (uint8_t)(1<<TWEN))
+#define TWI_DISABLE()  (TWCR &= (uint8_t)~(1<<TWEN))
 
 #define EXTERNAL                                0
 #define INTERNAL                                1
@@ -92,6 +92,8 @@
 #define TW_PS_4                              0x01
 #define TW_PS_16                             0x02
 #define TW_PS_32                             0x03
+#define TW_PS_64                             0x04
+
 
 #define TW_SEND_START()                   TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTA)
 #define TW_SEND_STOP()                    TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO)
@@ -105,6 +107,8 @@
                                           TW_CLR_INT()
 #define TW_REC_ACK()                      TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWEA)
 #define TW_REC_NACK()                     TWCR = (1<<TWINT)|(1<<TWEN)
+
+#define FOSC                              16000000UL
 
 //--- Init the TWI/I2C ---
 void tw_init(void);
@@ -140,7 +144,6 @@ void tw_init(void)
 #if !defined(TW_DATA_TRANSFER_MODE_STANDARD) && !defined(TW_DATA_TRANSFER_MODE_FAST)
 #define TW_DATA_TRANSFER_MODE_STANDARD
 #endif
-
     MCUCR &= (uint8_t)~(1<<PUD); //make sure global pull up disable is not set
 
 #ifdef TWI_PULLUPS
@@ -179,7 +182,7 @@ void tw_set_br(uint16_t bitrate_kHz)
     }
     else  br_div = (FOSC-16)/(2*1000l*bitrate_kHz);
    
-    TSBR = br_div;  //set the bit rate divisor
+    TWBR = br_div;  //set the bit rate divisor
 }
 //-----------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
