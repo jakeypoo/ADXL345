@@ -83,6 +83,71 @@
 #define TW_REC_ACK()                      TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWEA)
 #define TW_REC_NACK()                     TWCR = (1<<TWINT)|(1<<TWEN)
 
+//-----------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+
+void uart_init(uint16_t baudrate)
+{
+    uint16_t ubrr = (FOSC/(8*baudrate))-1;
+    UBRR0H = (uint8_t)(ubrr>>8);
+    UBRR0L = (uint8_t)(ubrr & 0xFF);
+
+    UCSR0B = (uint8_t)( (1<<RXEN0) | (1<<TXEN0));
+    UCSR0C = 0x06;
+}
+
+void uart_put(uint8_t data_char)
+{
+    while( !(UCSR0A & (1<<RXC0)) ) ;
+    UDR0 = data_char;
+}
+
+void uart_print_hex(uint32_t data_uint)
+{
+    uint8_t ms_nibble, nibble;
+    uart_put('\\');
+    uart_put('x');
+    for(ms_nibble = 28 ; ms_nibble >= 0; ms_nibble -=4)
+    {
+        if( (data_uint>>ms_nibble) & 0x0F) break; 
+    }
+    for( ; ms_nibble >= 0; ms_nibble -=4)
+    {
+        nibble = (uint8_t)( (data_uint>>ms_nibble) & 0x0F);
+        if(nibble>0x09) nibble += 0x37;
+        else nibble += 0x30;
+        uart_put(nibble); 
+    }
+}
+
+void uart_print_uint(uint32_t data_uint)
+{
+    uint8_t ms_digit, digit;
+    for(ms_digit = 1000000000; ms_digit>=0; ms_digit /= 10)
+    {
+        if(data_uint >= ms_digit) break;
+    }
+    for( ; ms_digit>=0; ms_digit /= 10)
+    {
+        digit = (uint8_t)(data_uint/ms_digit);
+        data_uint = data_uint % ms_digit;
+        uart_put(digit + 0x30);  
+    }   
+}
+
+void uart_print_int(int32_t data_int)
+{
+    if(data_int < 0)
+    {
+        uart_put('-');
+        data_int *= (-1);
+    }
+    uart_print_uint((uint32_t)(data_int));
+}
+
+//-----------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+
 
 //--- Init the TWI/I2C ---
 void tw_init(void);
@@ -109,7 +174,7 @@ uint8_t tw_write_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t 
 //-----------------------------------------------------------------------------------------------
 void tw_init(void)
 {
-    Serial.print("initing twi ");
+    uart_put('i'); uart_put(' '); uart_put('t'); uart_put('w'); uart_put('\n');
     //only supports one transfer speed, either 400kHz or 100kHz
 #ifdef TW_DATA_TRANSFER_MODE_FAST
     tw_set_br(400);
@@ -133,7 +198,7 @@ void tw_init(void)
 //-----------------------------------------------------------------------------------------------
 void tw_set_br(int16_t bitrate_kHz)
 {
-    Serial.print("setting bitrate");
+    uart_put('s'); uart_put(' '); uart_put('b'); uart_put('r'); uart_put(' ');
     uint8_t br_div; 
     TW_SET_PS(TW_PS_1); //clears the prescaler
 
@@ -154,7 +219,7 @@ void tw_set_br(int16_t bitrate_kHz)
          br_div = ((FOSC/(bitrate_kHz*1000))-16)/8;
     }
     else  br_div = ((FOSC/(bitrate_kHz*1000))-16)/2;
-    Serial.print(br_div, DEC);   
+    uart_print_uint(br_div);
     TWBR = br_div;  //set the bit rate divisor
 }
 //-----------------------------------------------------------------------------------------------
@@ -162,36 +227,29 @@ void tw_set_br(int16_t bitrate_kHz)
 uint8_t tw_get_status()
 {   
     while( !(TWCR & (1<<TWINT)) ) ;
-//    Serial.print("TWSR :");
-//    Serial.println(TWSR & 0xF8, HEX);
+    uart_print_int(TWSR & 0xF8);
+    uart_put('\n');
     return (TWSR & 0xF8);
 }
 //-----------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
 uint8_t tw_read_byte(uint8_t slave_address, uint8_t register_address)
 {   
-   Serial.print("reading byte");
- //   Serial.print("Grabbing line");
+    uart_put('r'); uart_put('b'); uart_put('\n');
     uint8_t data_in;  
     TW_SEND_START();                //grab the line
     if(tw_get_status() != TW_START) {TW_SEND_STOP(); return 0;}
- //   Serial.print("sending SLAW");
     TW_SEND_SLAW(slave_address);    //send a SLA+W 
     if(tw_get_status() != TW_MT_SLA_ACK) {TW_SEND_STOP(); return 0;}
- //   Serial.print("sending register address");
     TW_SEND_BYTE(register_address); //then register address
     if(tw_get_status() != TW_MT_DATA_ACK) {TW_SEND_STOP(); return 0;}
- //   Serial.print("repeat start");
     TW_SEND_START();                //repeated start
     if(tw_get_status() != TW_REP_START) {TW_SEND_STOP(); return 0;}
- //   Serial.print("sending SLAR");
     TW_SEND_SLAR(slave_address);    //send a SLA+R
     if(tw_get_status() != TW_MR_SLA_ACK) {TW_SEND_STOP(); return 0;}
- //   Serial.print("waiting on data");
     TW_REC_NACK();                  //let the data come in, send a NACK
     if(tw_get_status() != TW_MR_DATA_NACK) {TW_SEND_STOP(); return 0;}
     data_in = TWDR;                 //read the data register
- //   Serial.print("read byte");   
     TW_SEND_STOP();
     return data_in;  
 }
@@ -199,20 +257,15 @@ uint8_t tw_read_byte(uint8_t slave_address, uint8_t register_address)
 //-----------------------------------------------------------------------------------------------
 uint8_t tw_read_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t register_address)
 {
-   Serial.print("read block ");
- //   Serial.println("grabbing the line");
+    uart_put('r'); uart_put('B'); uart_put('\n');
     TW_SEND_START();                //grab the line
     if(tw_get_status() != TW_START) {TW_SEND_STOP(); return 0;}
- //   Serial.println("sending SLAW");
     TW_SEND_SLAW(slave_address);    //send a SLA+W 
     if(tw_get_status() != TW_MT_SLA_ACK) {TW_SEND_STOP(); return 0;}
- //   Serial.println("Sending reg address");
     TW_SEND_BYTE(register_address); //then register address
     if(tw_get_status() != TW_MT_DATA_ACK) {TW_SEND_STOP(); return 0;}
- //   Serial.println("rstart");
     TW_SEND_START();                //repeated start
     if(tw_get_status() != TW_REP_START) {TW_SEND_STOP(); return 0;} 
- //   Serial.println("sending slar");
     TW_SEND_SLAR(slave_address);    //send a SLA+R
     if(tw_get_status() != TW_MR_SLA_ACK) {TW_SEND_STOP(); return 0;}
     for( uint8_t i = 0; i < (n-1) ; i++)
@@ -222,7 +275,6 @@ uint8_t tw_read_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t r
         *(data+i) = TWDR;           //array must be at least n bytes in size
     }
     TW_REC_NACK();                  //let last data byte come in, send a NACK
- //   Serial.println("got the bytes, sent nack");
     if(tw_get_status() != TW_MR_DATA_NACK) {TW_SEND_STOP(); return 0;}
     *(data+(n-1)) = TWDR;           
     TW_SEND_STOP();
@@ -232,17 +284,13 @@ uint8_t tw_read_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t r
 //-----------------------------------------------------------------------------------------------
 uint8_t tw_write_byte(uint8_t data, uint8_t slave_address, uint8_t register_address)
 {
-    Serial.print("writing byte");
- //   Serial.print("grabbing line");
+    uart_put('w'); uart_put('b'); uart_put('\n');
     TW_SEND_START();                //grab the line
     if(tw_get_status() != TW_START) {TW_SEND_STOP(); return 0;}
- //   Serial.print("sending SLAW");
     TW_SEND_SLAW(slave_address);    //send a SLA+W 
     if(tw_get_status() != TW_MT_SLA_ACK) {TW_SEND_STOP(); return 0;}
- //   Serial.print("sending reg address");
     TW_SEND_BYTE(register_address); //then register address
     if(tw_get_status() != TW_MT_DATA_ACK) {TW_SEND_STOP(); return 0;}
- //   Serial.print("sending byte");
     TW_SEND_BYTE(data);             //send byte 
     if(tw_get_status() != TW_MT_DATA_ACK)  {TW_SEND_STOP(); return 0;} 
     TW_SEND_STOP();                 //got the awknowledge, drop the line
@@ -252,7 +300,7 @@ uint8_t tw_write_byte(uint8_t data, uint8_t slave_address, uint8_t register_addr
 //-----------------------------------------------------------------------------------------------
 uint8_t tw_write_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t register_address)
 {
-  
+    uart_put('w'); uart_put('B'); uart_put('\n'); 
     TW_SEND_START();                //grab the line
     if(tw_get_status() != TW_START) {TW_SEND_STOP(); return 0;}
     TW_SEND_SLAW(slave_address);    //send a SLA+W 
@@ -386,7 +434,7 @@ int16_t adxl_measure_axis(uint8_t axis_select)
 //-----------------------------------------------------------------------------------------------
 uint8_t adxl_measure_xyz(int16_t *data_out)
 {   
-    Serial.print("measuring all axes ");
+    uart_put('x'); uart_put('y'); uart_put('z'); uart_put('\n');
     uint8_t data_in[6]; 
     while( !tw_read_block(&data_in[0], 6, ADXL_SLA, ADXL_DATAX0) ) ;
     *data_out = (int16_t)( (data_in[0] << 8) | data_in[1] );
@@ -404,15 +452,15 @@ void adxl_set_intertupts(uint8_t int_enable, uint8_t int_pin_mask)
     ADXL_ENABLE();
 }
 
-
+//-----------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
 void setup(void)
 {
-    Serial.begin(9600);
+    uart_init(9600); 
     tw_init();
     adxl_init(ADXL_RANGE_4G);
-    Serial.print("0x");
-    Serial.println(tw_read_byte(ADXL_SLA, ADXL_DEVID), HEX);
-    Serial.println();
+    uart_print_hex(tw_read_byte(ADXL_SLA, ADXL_DEVID));
+    uart_put('\n');
 }
 
 void loop(void)
@@ -420,14 +468,18 @@ void loop(void)
     int16_t measured[3];
     if(adxl_measure_xyz(&measured[0]))
     {
-        Serial.print("x : ");
-        Serial.print(measured[0]);
-        Serial.print("   y : ");
-        Serial.print(measured[1]);
-        Serial.print("   z : ");
-        Serial.println(measured[2]);
+        uart_put('x');
+        uart_put(' ');
+        uart_print_int(measured[0]);
+        uart_put(' ');
+        uart_put('y');
+        uart_put(' ');
+        uart_print_int(measured[0]);
+        uart_put(' ');
+        uart_put('z');
+        uart_put(' ');
+        uart_print_int(measured[0]);
+        uart_put('\n');
     }
-    else
-       {Serial.println("Something didnt work");}
 }
 
