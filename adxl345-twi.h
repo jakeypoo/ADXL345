@@ -1,4 +1,37 @@
-// ################### INCOMPLETE ########################//
+/*---------------- ADXL345 (TWI/I2C) -------------*/
+/* j.telatnik                                2010 */
+/* ---------------------------------------------- */
+/* this library takes care of basic functions for */
+/* communicating with the ADXL345 accelerometer   */
+/* using the 2-wire interface (I2C). Only basic   */
+/* streaming functions are supported, there is no */
+/* FIFO functionality or tap/free-fall/activity   */
+/* detection included. Code was tested on ATMEGA48*/
+/* /88/128/328 devices only.                      */
+/*                                                */
+/*   NOTES:                                       */
+/* -F_CLK must be defined in order to set the     */
+/*    timer properly                              */
+/* -see twi-utils.h for definitions required in   */
+/*    order to initialize the 2-wire interface    */
+/* -ADXL_ALT_ADDRESS_HIGH should be defined if the*/
+/*    SDO pin is tied to Vcc, ADXL_ALT_ADDRESS_LOW*/
+/*    should be used if tied to ground            */
+/* -ADXL_FULL_RES should be defined to instruct   */
+/*    the ADXL to use full resolution, resulting  */
+/*    in values that are **4mg/LSB. If not defined*/
+/*    the output is always 10-bit resolution for  */
+/*    all ranges, and the resolution of the LSB   */
+/*    should be calculated from the ADXL datasheet*/
+/* **1mg = 9.81mm/sec^2 = 0.0322 ft/s^2           */
+/*                                                */
+/*  TO DOs:                                       */
+/* -Advancecd fuctionality like interrupts, FIFO  */
+/*    controls, tap/free-fall/(in)activity detec- */
+/*    tion would be useful, as well as changing   */
+/*    resolution during run time might be usefull,*/
+/*    but I won't be adding it unless I need to   */
+/* ---------------------------------------------- */
 
 #include "twi-utils.h"
 
@@ -55,6 +88,7 @@
 #define ADXL_RANGE_4G              0x01
 #define ADXL_RANGE_8G              0x02
 #define ADXL_RANGE_16G             0x03
+#define ADXL_RES_BIT               0x08
 
 #define ADXL_X_AXIS                ADXL_DATAX0
 #define ADXL_Y_AXIS                ADXL_DATAY0
@@ -102,7 +136,12 @@ void adxl_init(uint8_t range_select)
     tw_set_br(400);
     TWI_ENABLE();
 #endif
+#ifndef ADXL_FULL_RES
     ADXL_RANGE_SEL(range_select);
+#endif
+#ifdef ADXL_FULL_RES
+    ADXL_RANGE_SEL((range_select|ADXL_RES_BIT));
+#endif
     ADXL_ENABLE();    
 }
 //-----------------------------------------------------------------------------------------------
@@ -112,7 +151,7 @@ int16_t adxl_measure_axis(uint8_t axis_select)
 {
     uint8_t data_in[2]; 
     while( !tw_read_block(&data_in[0], 2, ADXL_SLA, axis_select) ) ;
-    return (int16_t)((data_in[0] << 8) | data_in[1]);
+    return (int16_t)((data_in[1] << 8) | data_in[0]);
 }
 //-----------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
@@ -120,9 +159,9 @@ uint8_t adxl_measure_xyz(int16_t *data_out)
 {
     uint8_t data_in[6]; 
     while( !tw_read_block(&data_in[0], 6, ADXL_SLA, ADXL_DATAX0) ) ;
-    *data_out = (int16_t)( (data_in[0] << 8) | data_in[1] );
-    *(data_out + 1) = (int16_t)( (data_in[2] << 8) | data_in[3] );  //make sure this casts 2's compliments properly
-    *(data_out + 2) = (int16_t)( (data_in[4] << 8) | data_in[5] );
+    *data_out = (int16_t)( (data_in[1] << 8) | data_in[0] );
+    *(data_out + 1) = (int16_t)( (data_in[3] << 8) | data_in[2] );  //make sure this casts 2's compliments properly
+    *(data_out + 2) = (int16_t)( (data_in[5] << 8) | data_in[4] );
     return 1;
 }
 //-----------------------------------------------------------------------------------------------
