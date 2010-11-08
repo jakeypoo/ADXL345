@@ -33,7 +33,6 @@
 /*    but I won't be adding it unless I need to   */
 /* ---------------------------------------------- */
 
-#include "twi-utils.h"
 
 //Alternate address select, default is SDO/ALT ADDRESS pin grounded
  
