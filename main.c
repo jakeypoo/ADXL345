@@ -1,8 +1,8 @@
-#define F_CLK 1000000UL
-#define F_CPU F_CLK
+#define F_CLK 8000000UL
+#define F_CPU 8000000UL 
 #define ADXL_ALT_ADDRESS_LOW
-#define TW_PULLUPS INTERNAL
-#define TW_DATA_TRANSFER_MODE_FAST    
+#define TW_PULLUPS INTERNAL_PULLUPS
+#define TW_DATA_TRANSFER_MODE_FAST        
 //#define VERBOSE
 #define TW_DELAY 10 
 #define ADXL_FULL_RES  //define to get full resolution, else set to 10 bit resolution
@@ -12,23 +12,16 @@
 #include <avr/interrupt.h>  
 #include <avr/pgmspace.h>
 #include <util/delay.h>
-//#include "twi-utils.h"
-//#include "adxl345-twi.h"
+
 
 void uart_init(uint16_t brate)
 {
-//        UBRR0L = F_CPU / 16 / brate - 1;
-//        UBRR0H = ((F_CPU / 16 / brate - 1)>>8);
-        // enable receive and transmit
-//        UCSR0B = _BV(RXEN0) | _BV(TXEN0);
-        // asyncronous, no parity, 1 stop bit, 8 bit character size
-//        UCSR0C = _BV(UCSZ00) | _BV(UCSZ01);
 
-    uint16_t ubrr = (F_CPU/(16UL*brate))-1;
+    uint16_t ubrr = (F_CPU/8UL/brate)-1;
     UBRR0L = (ubrr& 0xFF); 
     UBRR0H = (ubrr>>8);
 
-//    UCSR0A = 0x00;
+    UCSR0A = 0x02;
     UCSR0C = 0x06;
     UCSR0B = (uint8_t)((1<<TXEN0));
 }
@@ -91,9 +84,14 @@ void uart_print_int(int32_t data_int)
     uart_print_uint((uint32_t)(data_int));
 }
 
+
+#include "twi-utils.h"
+#include "adxl345-twi.h"
+
+
 int main(void)
 {
-    
+    cli(); 
     uart_init(9600); 
     uart_put(':');
     uart_put(')');
@@ -110,6 +108,7 @@ int main(void)
     while(1)
     {
         _delay_ms(20);
+//        uart_put('x'); 
         int16_t measured[3];
         if(adxl_measure_xyz(&measured[0]));
         {

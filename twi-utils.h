@@ -10,8 +10,8 @@
 /*   NOTES:                                       */
 /* -F_CLK must be defined in order to set the     */
 /*    timer properly                              */
-/* -TW_PULLUPS_INTERNAL or TW_PULLUPS_EXTERNAL    */
-/*     should be defined to enable or disable     */
+/* -TW_PULLUPS should be defined as INTERNAL or   */
+/*     EXTERNAL in order to enable or disable     */
 /*     internal interrupts, default is internal   */
 /* -TW_DATA_TRANSFER_MODE_FAST should be defined  */
 /*     to enable 400kHz bit rate, else TW_DATA_T- */
@@ -84,7 +84,7 @@
 #define TWI_DISABLE()  (TWCR &= (uint8_t)~(1<<TWEN))
 
 #define EXTERNAL_PULLUPS                                0
-#define INTERNAL_PULLUPS                                1
+#define INTERNAL_PULLUPS                                ((uint8_t)(1<<4)|(1<<5))
 
 //#define TW_PULLUPS INTERNAL_PULLUPS
 //#define TW_PULLUPS EXTERNAL_PULLUPS       // if defined, (en/dis)ables the internal pull-ups on SDA and SCL pins; default is (no external pullups) internal pullups enabled
@@ -92,10 +92,9 @@
 //#define TW_DATA_TRANSFER_MODE_FAST      //400kHz transfer speed
 //#define TW_DATA_TRANSFER_MODE_STANDARD  //100kHz tranfer speed
 
-#define TW_SET_PULLUPS(EXTERNAL_PULLUPS)          PORTC &= (uint8_t)~( (1<<4) | (1<<5) )
-#define TW_SET_PULLUPS(INTERNAL_PULLUPS)          PORTC |= (uint8_t)( (1<<4) | (1<<5) )
+#define TW_SET_PULLUPS(x)          PORTC =(PORTC & (uint8_t)~((1<<4)|(1<<5)))|(x)
 
-#define TW_SET_PS(x)                      TWSR   = (uint8_t)(x)
+#define TW_SET_PS(x)               TWSR = (uint8_t)(x)
 
 #define TW_PS_1                              0x00
 #define TW_PS_4                              0x01
@@ -121,7 +120,7 @@
 void tw_init(void);
 
 //--- Set the two-wire clock bits --- 
-void tw_set_br(uint16_t bitrate_kHz);
+void tw_set_br(int16_t bitrate_kHz);
 
 //--- wait for TWINT to be set, return the status register ---
 uint8_t tw_get_status();
@@ -164,7 +163,7 @@ void tw_init(void)
 }
 //-----------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
-void tw_set_br(uint16_t bitrate_kHz)
+void tw_set_br(int16_t bitrate_kHz)
 {
     uint8_t br_div; 
     
@@ -174,20 +173,23 @@ void tw_set_br(uint16_t bitrate_kHz)
     if( (int16_t)(F_CLK/16000)/bitrate_kHz - 16 > 255 ) 
     { 
         TW_SET_PS(TW_PS_64); 
-        br_div = (uint8_t)((F_CLK/(bitrate_kHz*1000))-16)/128;
+        br_div = (uint8_t)((F_CLK/bitrate_kHz/1000)-16)/128;
   } 
     else if( (int16_t)(F_CLK/4000)/bitrate_kHz - 16 > 255 )
     {
          TW_SET_PS(TW_PS_16);
-         br_div = (uint8_t)((F_CLK/(bitrate_kHz*1000))-16)/32;
+         br_div = (uint8_t)((F_CLK/bitrate_kHz/1000)-16)/32;
    }
     else if( (int16_t)(F_CLK/1000)/bitrate_kHz - 16 > 255 )
     {
          TW_SET_PS(TW_PS_4);
-         br_div = (uint8_t)((F_CLK/(bitrate_kHz*1000))-16)/8;
+         br_div = (uint8_t)((F_CLK/bitrate_kHz/1000)-16)/8;
     }
-    else  br_div = (uint8_t)((F_CLK/(bitrate_kHz*1000))-16)/2;
-   
+    else  br_div = (uint8_t)((F_CLK/bitrate_kHz/1000)-16)/2;
+#ifdef VERBOSE
+    uart_print_int(br_div);
+    uart_put('\n');
+#endif   
     TWBR = br_div;  //set the bit rate divisor
 }
 //-----------------------------------------------------------------------------------------------
@@ -195,6 +197,10 @@ void tw_set_br(uint16_t bitrate_kHz)
 uint8_t tw_get_status()
 {
     while( !(TWCR & (1<<TWINT)) ) ;
+#ifdef VERBOSE
+    uart_print_hex(TWSR & 0xF8);
+    uart_put('\n');
+#endif 
     return (TWSR & 0xF8);
 }
 //-----------------------------------------------------------------------------------------------
@@ -206,6 +212,10 @@ uint8_t tw_read_byte(uint8_t slave_address, uint8_t register_address)
 #ifdef TW_DELAY
        _delay_us(TW_DELAY);
 #endif
+#ifdef VERBOSE
+    uart_put('r');uart_put('b');
+    uart_put('\n');
+#endif 
         TW_SEND_START();                //grab the line
         if(tw_get_status() != TW_START) {TW_SEND_STOP(); continue;}
         TW_SEND_SLAW(slave_address);    //send a SLA+W 
@@ -227,10 +237,15 @@ uint8_t tw_read_byte(uint8_t slave_address, uint8_t register_address)
 //-----------------------------------------------------------------------------------------------
 uint8_t tw_read_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t register_address)
 {
+    uint8_t i;
     while(1){
 #ifdef TW_DELAY
         _delay_us(TW_DELAY);
 #endif
+#ifdef VERBOSE
+    uart_put('r');uart_put('B');
+    uart_put('\n');
+#endif 
         TW_SEND_START();                //grab the line
         if(tw_get_status() != TW_START) {TW_SEND_STOP(); continue;}
         TW_SEND_SLAW(slave_address);    //send a SLA+W 
@@ -241,7 +256,7 @@ uint8_t tw_read_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t r
         if(tw_get_status() != TW_REP_START) {TW_SEND_STOP(); continue;} 
         TW_SEND_SLAR(slave_address);    //send a SLA+R
         if(tw_get_status() != TW_MR_SLA_ACK) {TW_SEND_STOP(); continue;}
-        for( uint8_t i = 0; i < (n-1) ; i++)
+        for(i = 0; i < (n-1) ; i++)
         {
             TW_REC_ACK();               //let n-1 data bytes come in, respond with ACKs to keep them flowing
             if(tw_get_status() != TW_MR_DATA_ACK) {TW_SEND_STOP(); return 0;}
@@ -257,11 +272,15 @@ uint8_t tw_read_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t r
 //-----------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
 uint8_t tw_write_byte(uint8_t data, uint8_t slave_address, uint8_t register_address)
-{
+{  
     while(1){
 #ifdef TW_DELAY
        _delay_us(TW_DELAY);
 #endif
+#ifdef VERBOSE
+    uart_put('w');uart_put('b');
+    uart_put('\n');
+#endif 
         TW_SEND_START();                //grab the line
         if(tw_get_status() != TW_START) {TW_SEND_STOP(); continue;}
         TW_SEND_SLAW(slave_address);    //send a SLA+W 
@@ -278,17 +297,22 @@ uint8_t tw_write_byte(uint8_t data, uint8_t slave_address, uint8_t register_addr
 //-----------------------------------------------------------------------------------------------
 uint8_t tw_write_block(uint8_t *data, uint8_t n, uint8_t slave_address, uint8_t register_address)
 {
+    uint8_t i;
     while(1){
 #ifdef TW_DELAY
        _delay_us(TW_DELAY);
 #endif
+#ifdef VERBOSE
+    uart_put('w');uart_put('B');
+    uart_put('\n');
+#endif 
         TW_SEND_START();                //grab the line
         if(tw_get_status() != TW_START) {TW_SEND_STOP(); continue;}
         TW_SEND_SLAW(slave_address);    //send a SLA+W 
         if(tw_get_status() != TW_MT_SLA_ACK) {TW_SEND_STOP(); continue;}
         TW_SEND_BYTE(register_address); //then register address
         if(tw_get_status() != TW_MT_DATA_ACK) {TW_SEND_STOP(); continue;}
-        for(uint8_t i = 0; i < (n-1) ; i++)
+        for(i = 0; i < (n-1) ; i++)
         {  
             TW_SEND_BYTE( *(data+i) );  //array containing data must be at least n bytes in size
             if(tw_get_status() != TW_MT_DATA_ACK)  {TW_SEND_STOP(); return 0;}   
