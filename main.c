@@ -114,7 +114,7 @@ int main(void)
     SET_ADMUX(2);
     PORTB &= ~(0x04);
     DDRB &= ~(0x04);
-    uart_init(9600); 
+    uart_init(19200); 
     uart_put(':');
     uart_put(')');
     uart_put('\n');
@@ -131,7 +131,7 @@ int main(void)
 
     while(1)
     {
-        _delay_ms(20);
+//        _delay_ms(2);
 //        uart_put('x'); 
         int16_t measured[3];
         uint8_t adc_meas;
