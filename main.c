@@ -4,6 +4,8 @@
 #define TW_PULLUPS INTERNAL_PULLUPS
 #define TW_DATA_TRANSFER_MODE_FAST        
 //#define VERBOSE
+#define PRESSUSE_SENS
+#define HR_SENS
 #define TW_DELAY 10 
 #define ADXL_FULL_RES  //define to get full resolution, else set to 10 bit resolution
 
@@ -107,21 +109,22 @@ ISR(PCINT0_vect)
 int main(void)
 {
     cli(); 
+    TCCR0A = 0x02; //clear timer on compare match A
+    TCCR0B = 0x03; //64 prescaler
+    OCR0A = 244;
+    TIMSK0 = 0x02;
+#ifdef PRESSURE_SENS
     ADMUX = 0x60;
     ADCSRA = 0x86;
+    SET_ADMUX(2);
+#endif
+#ifdef HR_SENS
     PCICR = 0x01;
     PCMSK0 = 0x04;
-    SET_ADMUX(2);
     PORTB &= ~(0x04);
     DDRB &= ~(0x04);
+#endif 
     uart_init(19200); 
-    uart_put(':');
-    uart_put(')');
-    uart_put('\n');
-    uart_print_int(100);
-    uart_put('\n');
-    uart_print_int(-100);
-    uart_put('\n');
     tw_init();
     adxl_init(ADXL_RANGE_16G);
     uart_print_hex(tw_read_byte(ADXL_SLA, ADXL_DEVID));
@@ -131,19 +134,23 @@ int main(void)
 
     while(1)
     {
-//        _delay_ms(2);
-//        uart_put('x'); 
         int16_t measured[3];
+#ifdef PRESSURE_SENS 
         uint8_t adc_meas;
         ADC_STARTC();
         while(!(ADCSRA|1<<ADIF)) ;
         ADC_CLEAR_FLAG();
         adc_meas = ADCH;
+#endif
+#ifdef HR_SENS
         uart_print_uint(hr_mon);
         hr_mon = 0;
         uart_put(' ');
+#endif
+#ifdef PRESSURE_SENS 
         uart_print_uint(adc_meas);
         uart_put(' ');
+#endif
         if(adxl_measure_xyz(&measured[0]));
         {
             uart_put('x');
@@ -159,5 +166,7 @@ int main(void)
             uart_print_int(measured[2]);
             uart_put('\n');
         }
+    while(!(TIFR0 & 1<<OCF0A)) ;
+    TIFR0 |= 1<<OCF0A;
     }
 }
