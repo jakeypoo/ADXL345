@@ -7,6 +7,16 @@
 #define TW_DELAY 10 
 #define ADXL_FULL_RES  //define to get full resolution, else set to 10 bit resolution
 
+//some additional ADC stuff
+
+#define _ADMUX_REFS   1
+#define _ADMUX_ADLAR  1
+#define SET_ADMUX(x)       ADMUX |= (uint8_t)(x)
+#define _ADCSRA_ADPS  0x06  //64 prescalar
+#define ADC_STARTC()       ADCSRA |= 0xC0
+#define ADC_CLEAR_FLAG()     ADCSRA &= ~(1<<ADIF)
+
+
 #include <avr/io.h>
 #include <stdlib.h>
 #include <avr/interrupt.h>  
@@ -16,7 +26,6 @@
 
 void uart_init(uint16_t brate)
 {
-
     uint16_t ubrr = (F_CPU/8UL/brate)-1;
     UBRR0L = (ubrr& 0xFF); 
     UBRR0H = (ubrr>>8);
@@ -88,10 +97,23 @@ void uart_print_int(int32_t data_int)
 #include "twi-utils.h"
 #include "adxl345-twi.h"
 
+uint8_t hr_mon =0;
+
+ISR(PCINT0_vect)
+{
+    hr_mon=1;
+}
 
 int main(void)
 {
     cli(); 
+    ADMUX = 0x60;
+    ADCSRA = 0x86;
+    PCICR = 0x01;
+    PCMSK0 = 0x04;
+    SET_ADMUX(2);
+    PORTB &= ~(0x04);
+    DDRB &= ~(0x04);
     uart_init(9600); 
     uart_put(':');
     uart_put(')');
@@ -105,11 +127,23 @@ int main(void)
     uart_print_hex(tw_read_byte(ADXL_SLA, ADXL_DEVID));
     uart_put('\n');
 
+    sei();
+
     while(1)
     {
         _delay_ms(20);
 //        uart_put('x'); 
         int16_t measured[3];
+        uint8_t adc_meas;
+        ADC_STARTC();
+        while(!(ADCSRA|1<<ADIF)) ;
+        ADC_CLEAR_FLAG();
+        adc_meas = ADCH;
+        uart_print_uint(hr_mon);
+        hr_mon = 0;
+        uart_put(' ');
+        uart_print_uint(adc_meas);
+        uart_put(' ');
         if(adxl_measure_xyz(&measured[0]));
         {
             uart_put('x');
