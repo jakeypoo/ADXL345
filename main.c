@@ -4,8 +4,12 @@
 #define TW_PULLUPS INTERNAL_PULLUPS
 #define TW_DATA_TRANSFER_MODE_FAST        
 //#define VERBOSE
-#define PRESSUSE_SENS
+
+#define PRESSURE_SENS
 #define HR_SENS
+//#define PRINT_XYZ
+#define PRINT_ENC
+
 #define TW_DELAY 10 
 #define ADXL_FULL_RES  //define to get full resolution, else set to 10 bit resolution
 
@@ -14,7 +18,7 @@
 #define _ADMUX_REFS   1
 #define _ADMUX_ADLAR  1
 #define SET_ADMUX(x)       ADMUX |= (uint8_t)(x)
-#define _ADCSRA_ADPS  0x06  //64 prescalar
+#define _ADCSRA_ADPS  0x04  //256 prescalar
 #define ADC_STARTC()       ADCSRA |= 0xC0
 #define ADC_CLEAR_FLAG()     ADCSRA &= ~(1<<ADIF)
 
@@ -108,11 +112,12 @@ ISR(PCINT0_vect)
 
 int main(void)
 {
+    uint32_t adxl_mag;
     cli(); 
     TCCR0A = 0x02; //clear timer on compare match A
-    TCCR0B = 0x03; //64 prescaler
-    OCR0A = 244;
-    TIMSK0 = 0x02;
+    TCCR0B = 0x04; //64 prescaler
+    OCR0A = 122;
+    TIMSK0 = 0x00;
 #ifdef PRESSURE_SENS
     ADMUX = 0x60;
     ADCSRA = 0x86;
@@ -121,7 +126,7 @@ int main(void)
 #ifdef HR_SENS
     PCICR = 0x01;
     PCMSK0 = 0x04;
-    PORTB &= ~(0x04);
+    PORTB = 0xFF;
     DDRB &= ~(0x04);
 #endif 
     uart_init(19200); 
@@ -143,14 +148,13 @@ int main(void)
         adc_meas = ADCH;
 #endif
 #ifdef HR_SENS
-        uart_print_uint(hr_mon);
+        uart_put(hr_mon);
         hr_mon = 0;
-        uart_put(' ');
 #endif
 #ifdef PRESSURE_SENS 
-        uart_print_uint(adc_meas);
-        uart_put(' ');
+        uart_put(adc_meas);
 #endif
+#ifdef PRINT_XYZ
         if(adxl_measure_xyz(&measured[0]));
         {
             uart_put('x');
@@ -166,6 +170,20 @@ int main(void)
             uart_print_int(measured[2]);
             uart_put('\n');
         }
+#endif
+#ifdef PRINT_ENC
+        if(adxl_measure_xyz(&measured[0]));
+        {
+            adxl_mag = (uint32_t)((int32_t)(measured[0]>>1)*(int32_t)(measured[0]>>1));
+            adxl_mag += (uint32_t)((int32_t)(measured[1]>>1)*(int32_t)(measured[1]>>1));
+            adxl_mag += (uint32_t)((int32_t)(measured[2]>>1)*(int32_t)(measured[2]>>1));
+            uart_put((adxl_mag>>24)&0xFF);
+            uart_put((adxl_mag>>16)&0xFF);
+            uart_put((adxl_mag>>8)&0xFF);
+            uart_put((adxl_mag)&0xFF);
+            uart_put('\n');
+        }
+#endif
     while(!(TIFR0 & 1<<OCF0A)) ;
     TIFR0 |= 1<<OCF0A;
     }
