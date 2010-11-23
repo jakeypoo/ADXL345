@@ -113,10 +113,10 @@ ISR(PCINT0_vect)
 int main(void)
 {
     uint32_t adxl_mag;
-    cli(); 
+    cli();
     TCCR0A = 0x02; //clear timer on compare match A
-    TCCR0B = 0x04; //64 prescaler
-    OCR0A = 122;
+    TCCR0B = 0x03; //64 prescaler
+    OCR0A = 156;
     TIMSK0 = 0x00;
 #ifdef PRESSURE_SENS
     ADMUX = 0x60;
@@ -129,7 +129,7 @@ int main(void)
     PORTB = 0xFF;
     DDRB &= ~(0x04);
 #endif 
-    uart_init(19200); 
+    uart_init(57600); 
     tw_init();
     adxl_init(ADXL_RANGE_16G);
     uart_print_hex(tw_read_byte(ADXL_SLA, ADXL_DEVID));
@@ -147,13 +147,16 @@ int main(void)
         ADC_CLEAR_FLAG();
         adc_meas = ADCH;
 #endif
-#ifdef HR_SENS
+
+#ifdef HR_PRINT
         uart_put(hr_mon);
         hr_mon = 0;
 #endif
-#ifdef PRESSURE_SENS 
+
+#ifdef PRESSURE_PRINT 
         uart_put(adc_meas);
 #endif
+
 #ifdef PRINT_XYZ
         if(adxl_measure_xyz(&measured[0]));
         {
@@ -171,20 +174,26 @@ int main(void)
             uart_put('\n');
         }
 #endif
+
 #ifdef PRINT_ENC
+        uart_put(((hr_mon<<7)&0x80)|((adc_meas>>1)&0x7F));
+        hr_mon = 0;
         if(adxl_measure_xyz(&measured[0]));
         {
-            adxl_mag = (uint32_t)((int32_t)(measured[0]>>1)*(int32_t)(measured[0]>>1));
-            adxl_mag += (uint32_t)((int32_t)(measured[1]>>1)*(int32_t)(measured[1]>>1));
-            adxl_mag += (uint32_t)((int32_t)(measured[2]>>1)*(int32_t)(measured[2]>>1));
-            uart_put((adxl_mag>>24)&0xFF);
-            uart_put((adxl_mag>>16)&0xFF);
-            uart_put((adxl_mag>>8)&0xFF);
-            uart_put((adxl_mag)&0xFF);
+//            adxl_mag = (uint32_t)((int32_t)(measured[0]>>1)*(int32_t)(measured[0]>>1));
+//            adxl_mag += (uint32_t)((int32_t)(measured[1]>>1)*(int32_t)(measured[1]>>1));
+//            adxl_mag += (uint32_t)((int32_t)(measured[2]>>1)*(int32_t)(measured[2]>>1));
+//            uart_put((adxl_mag>>24)&0xFF);
+//            uart_put((adxl_mag>>16)&0xFF);
+//            uart_put((adxl_mag>>8)&0xFF);
+//            uart_put((adxl_mag)&0xFF);
+            uart_put((measured[0]>>5)&0xFF);
+            uart_put((measured[1]>>5)&0xFF);
+            uart_put((measured[2]>>5)&0xFF);
             uart_put('\n');
         }
 #endif
-    while(!(TIFR0 & 1<<OCF0A)) ;
+   while(!(TIFR0 & 1<<OCF0A)) ;
     TIFR0 |= 1<<OCF0A;
     }
 }
