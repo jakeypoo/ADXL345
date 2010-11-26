@@ -12,12 +12,13 @@ Thread thread = new Thread(runnable);
 
 
 //======= SAVING DATA STUFF =========
-boolean save_file = false;
+boolean save_file = true;
 
 String timestamp = String.valueOf(day()) + '-' + String.valueOf(month()) + '-' + String.valueOf(year()) + '@' + String.valueOf(hour()) + String.valueOf(minute()) + ".txt";
-String filename = timestamp; //if you want to call your file something else, name it here
+String sensors_filename = "SENSORS" + timestamp; //if you want to call your file something else, name it here
+String brain_filename = "BRAIN" + timestamp; 
 
-PrintWriter outputter;
+PrintWriter brain_outputter, sensors_outputter;
 
 int serial_dump_count = 0;
 int[] heart_buffer = new int[1];
@@ -44,8 +45,9 @@ int adxl_mag;
 void setup(){
   
   if(save_file){
-    println ("SAVING TO FILE : " + filename);
-    outputter = createWriter(filename);
+    println ("SAVING TO FILE : " + timestamp);
+    sensors_outputter = createWriter(sensors_filename);
+    brain_outputter = createWriter(brain_filename);
   }
   size(900,810);
   
@@ -117,7 +119,7 @@ void draw() {
  
   for(int a = 0; a< add_length; a++){
      ch1_graph.addValue(heart_buffer[a]*0.75);  //heart rate 
-     ch2_graph.addValue(touch_buffer[a]*.01);  //pressure strip
+     ch2_graph.addValue(touch_buffer[a]*.0085);  //pressure strip
      ch3_graph.addValue(x_buffer[a] * .05);
      ch4_graph.addValue(y_buffer[a] * .05);
      ch5_graph.addValue(z_buffer[a] * .05);
@@ -150,6 +152,7 @@ class SerialThread implements Runnable {
    while(true){
    // ------- READ SERIAL DATA --------- 
      packet[0] = 0;
+     String output_line = "";
      while(myPort.available() < 8) continue; //if you try to read an empty serial buffer monsters will come and eat you   
      while(packet[0] != '\n') packet[0] = myPort.readChar();
      
@@ -159,24 +162,29 @@ class SerialThread implements Runnable {
      for(int m = 0; m<1; m++){
        heart_buffer = append(heart_buffer, packet[0]>>7);  
       }
+     output_line += String.valueOf(packet[0]>>7) + '\t';
      for(int m = 0; m<1; m++){
        touch_buffer = append(touch_buffer, packet[0]&0x7F);
      }
-     
+     output_line += String.valueOf(packet[0]&0x7F) + '\t';
+    
      for(int m = 0; m<1; m++){
         x_buffer = append(x_buffer,byte(packet[1])); 
      }
+     output_line += String.valueOf(byte(packet[1])) + '\t';
 
      for(int m = 0; m<1; m++){
         y_buffer = append(y_buffer,byte(packet[2])); 
      }
-
+     output_line += String.valueOf(byte(packet[2])) + '\t';
 
      for(int m = 0; m<1; m++){
         z_buffer = append(z_buffer,byte(packet[3])); 
      }
-
-
+     output_line += String.valueOf(byte(packet[3]));
+     
+     if(save_file) sensors_outputter.println(output_line);
+      
      if(serial_dump_count >0) 
      {
        heart_buffer = subset(heart_buffer, serial_dump_count);
@@ -187,7 +195,6 @@ class SerialThread implements Runnable {
        serial_dump_count=0;
      }
   //        fileout[CHUNK_SIZE-(2*i)] = String.valueOf(int(packet[0])) + '\t' + String.valueOf(int(packet[1])) + '\t' + String.valueOf(adxl_mag) + '\t';
- //         fileout[CHUNK_SIZE-(2*i)+1] = String.valueOf(int(packet[0])) + '\t' + String.valueOf(int(packet[1])) + '\t' + String.valueOf(adxl_mag) + '\t';
    }
   }
 
@@ -199,7 +206,7 @@ void oscEvent(OscMessage msg) {
     if(msg.checkAddrPattern("/mindset/raw")==true) {
     int val = msg.get(0).intValue();
     raw_graph.addValue(val*RAW_SCALE);    
-    //if(print_e n) println(" raw: " + val + " " + val*RAW_SCALE);
+    if(save_file) brain_outputter.println(val);
     raw_buffer = append(raw_buffer, val);
   } 
 
